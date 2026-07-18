@@ -111,6 +111,7 @@ if (CUDAToolkit_FOUND)
     list(APPEND GGML_SOURCES_CUDA ${SRCS})
     file(GLOB   SRCS "template-instances/mmf*.cu")
     list(APPEND GGML_SOURCES_CUDA ${SRCS})
+    list(APPEND GGML_SOURCES_CUDA ${CMAKE_CURRENT_SOURCE_DIR}/mm_small.cu)
 
     if (GGML_CUDA_FA_ALL_QUANTS)
         file(GLOB   SRCS "template-instances/fattn-vec*.cu")
@@ -141,6 +142,14 @@ if (CUDAToolkit_FOUND)
 
     if (GGML_CUDA_FORCE_CUBLAS)
         add_compile_definitions(GGML_CUDA_FORCE_CUBLAS)
+    endif()
+
+    if (GGML_CUDA_CC50)
+        add_compile_definitions(GGML_CUDA_CC50)
+    endif()
+
+    if (GGML_CUDA_CC80_PLUS)
+        add_compile_definitions(GGML_CUDA_CC80_PLUS)
     endif()
 
     if (GGML_CUDA_NO_VMM)

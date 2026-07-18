@@ -5,6 +5,32 @@
 
 #define CUDA_Q8_0_NE_ALIGN 2048
 
+#ifdef GGML_CUDA_CC50
+// Vectorized F16→F32 dequant for CC 5.0: 4 elements per thread, uint2 (8-byte) load.
+static __global__ void dequantize_f16_f32_v4(
+        const void * __restrict__ vx, float * __restrict__ y, const int64_t k) {
+    const half * x = (const half *) vx;
+    int64_t i = (int64_t(blockIdx.x * blockDim.x) + threadIdx.x) * 4;
+    if (i + 3 < k) {
+        uint2 v = *(const uint2 *)(x + i);
+        y[i + 0] = __half2float(__ushort_as_half(v.x & 0xFFFF));
+        y[i + 1] = __half2float(__ushort_as_half(v.x >> 16));
+        y[i + 2] = __half2float(__ushort_as_half(v.y & 0xFFFF));
+        y[i + 3] = __half2float(__ushort_as_half(v.y >> 16));
+    } else {
+        for (; i < k; i++) {
+            y[i] = __half2float(x[i]);
+        }
+    }
+}
+
+static void dequantize_f16_f32_v4_cuda(const void * vx, float * y, const int64_t k, cudaStream_t stream) {
+    const int block_size = 128;
+    const int num_blocks = (k + block_size * 4 - 1) / (block_size * 4);
+    dequantize_f16_f32_v4<<<num_blocks, block_size, 0, stream>>>(vx, y, k);
+}
+#endif
+
 template <int qk, int qr, dequantize_kernel_t dequantize_kernel, typename dst_t>
 static __global__ void dequantize_block(const void * __restrict__ vx, dst_t * __restrict__ y,
         const int64_t ne00, const int64_t ne01,
@@ -814,7 +840,11 @@ to_fp32_cuda_t ggml_get_to_fp32_cuda(ggml_type type) {
         case GGML_TYPE_NVFP4:
             return dequantize_row_nvfp4_cuda;
         case GGML_TYPE_F16:
+#ifdef GGML_CUDA_CC50
+            return dequantize_f16_f32_v4_cuda;
+#else
             return convert_unary_cont_cuda<half>;
+#endif
         case GGML_TYPE_BF16:
             return convert_unary_cont_cuda<nv_bfloat16>;
         default:
