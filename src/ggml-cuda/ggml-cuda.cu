@@ -1772,23 +1772,12 @@ static void ggml_cuda_op_mul_mat_cublas(
         const float beta = 0.0f;
 
         CUBLAS_CHECK(cublasSetStream(ctx.cublas_handle(id), stream));
-#ifdef GGML_CUDA_CC50
-        CUBLAS_CHECK(
-            cublasGemmEx(ctx.cublas_handle(id), CUBLAS_OP_T, CUBLAS_OP_N,
-                    row_diff, src1_ncols, ne10,
-                    &alpha, src0_ddf_i,  CUDA_R_32F, ne00,
-                            src1_ddf1_i, CUDA_R_32F, ne10,
-                    &beta,  dst_dd_i,    CUDA_R_32F, ldc,
-                    CUBLAS_COMPUTE_32F,
-                    CUBLAS_GEMM_ALGO13));
-#else
         CUBLAS_CHECK(
             cublasSgemm(ctx.cublas_handle(id), CUBLAS_OP_T, CUBLAS_OP_N,
                     row_diff, src1_ncols, ne10,
                     &alpha, src0_ddf_i,  ne00,
                             src1_ddf1_i, ne10,
                     &beta,  dst_dd_i,    ldc));
-#endif
     }
 
     GGML_UNUSED_VARS(dst, src1_ddq_i, src1_padded_row_size);
@@ -2607,10 +2596,11 @@ static void ggml_cuda_mul_mat(ggml_backend_cuda_context & ctx, const ggml_tensor
     //printf("src1 is contiguous %d, transposed %d, type = %s, name = %s\n", ggml_is_contiguous(src1), ggml_is_transposed(src1), ggml_type_name(src1->type), src1->name);
 
 #ifdef GGML_CUDA_CC50
-    use_mul_mat_vec_f = false;
-    use_mul_mat_f     = false;
-    use_mul_mat_vec_q = false;
-    use_mul_mat_q     = false;
+    // Do NOT force-disable custom matmul kernels. The forced-cuBLAS fallback
+    // (dequant -> F32 -> cuBLAS) produces wrong results for some shapes on sm_50
+    // (DiT Q4_KM velocity cos 0.28 vs 0.95 with the custom kernels). Let the
+    // normal dispatch pick MMQ/MMVQ (quantized) and MMF/MMVF (F16), which are
+    // correct on all shapes. Verified: DiT/T5/SAME Q4KM all correct.
 #endif
 
     //TODO update for generic tensor parallelism
