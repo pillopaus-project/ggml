@@ -1,4 +1,9 @@
-# ggml
+this fork differs in :
+- ServeurPersoCom optimizations and enhancements
+- PP : W.I.P.
+
+
+# ggml 
 
 [Manifesto](https://github.com/ggerganov/llama.cpp/discussions/205)
 
